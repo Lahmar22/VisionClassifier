@@ -29,19 +29,7 @@ st.markdown(
     [data-testid="stHeader"] {
         background: rgba(11, 17, 21, .75);
     }
-    .block-container {
-        max-width: 1180px;
-        padding-top: 3rem;
-        padding-bottom: 4rem;
-    }
-    .eyebrow {
-        color: #74d3b2;
-        font-size: .78rem;
-        font-weight: 700;
-        letter-spacing: .16em;
-        text-transform: uppercase;
-        margin-bottom: .55rem;
-    }
+    
     .subtitle {
         color: #9eaeaf;
         font-size: 1.05rem;
@@ -115,7 +103,6 @@ def predict_image(image: Image.Image, model, class_names: list[str]) -> list[tup
     return ranked_predictions
 
 
-st.markdown('<div class="eyebrow">Vision AI · Intel scene dataset</div>', unsafe_allow_html=True)
 st.title("Scene Classifier")
 st.markdown(
     '<div class="subtitle">Upload a photo and let the model identify the scene.</div>',
@@ -142,7 +129,6 @@ with st.sidebar:
         model_paths,
         format_func=lambda path: path.name,
     )
-    st.caption("The model is loaded from the `models` folder.")
     st.divider()
     st.markdown("**Available scene classes**")
     st.caption("Buildings · Forest · Glacier · Mountain · Sea · Street")
@@ -174,41 +160,45 @@ if model.output_shape[-1] != len(class_names):
     )
     st.stop()
 
-st.success(f"Model ready · {selected_model.name}", icon="✅")
+st.markdown('<div class="panel-title">01 &nbsp; Choose an image</div>', unsafe_allow_html=True)
+uploaded_file = st.file_uploader(
+    "Drop an image here or browse your files",
+    type=["jpg", "jpeg", "png", "webp"],
+    help="Supported formats: JPG, PNG and WebP.",
+)
 
-upload_column, result_column = st.columns([1.05, 0.95], gap="large")
+image = None
+predictions = None
+if uploaded_file is not None:
+    try:
+        image = Image.open(uploaded_file)
+        image.load()
+        predictions = predict_image(image, model, class_names)
+    except (UnidentifiedImageError, OSError, ValueError, TypeError, RuntimeError) as exc:
+        st.error(f"Could not classify this image: {exc}")
 
-with upload_column:
-    st.markdown('<div class="panel-title">01 &nbsp; Choose an image</div>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader(
-        "Drop an image here or browse your files",
-        type=["jpg", "jpeg", "png", "webp"],
-        help="Supported formats: JPG, PNG and WebP.",
-    )
+st.markdown('<div class="panel-title">02 &nbsp; Prediction</div>', unsafe_allow_html=True)
+result_column, probabilities_column = st.columns(2, gap="large")
 
 with result_column:
-    st.markdown('<div class="panel-title">02 &nbsp; Prediction</div>', unsafe_allow_html=True)
-    if uploaded_file is None:
+    st.subheader("Prediction result")
+    if predictions is None:
         st.info("Your prediction will appear here after you upload an image.")
     else:
-        try:
-            image = Image.open(uploaded_file)
-            image.load()
-            predictions = predict_image(image, model, class_names)
-        except (UnidentifiedImageError, OSError, ValueError, TypeError, RuntimeError) as exc:
-            st.error(f"Could not classify this image: {exc}")
-        else:
-            predicted_class, confidence = predictions[0]
-            st.markdown('<div class="result-label">PREDICTED SCENE</div>', unsafe_allow_html=True)
-            st.markdown(
-                f'<div class="result-class">{predicted_class.title()}</div>',
-                unsafe_allow_html=True,
-            )
-            st.metric("Confidence", f"{confidence:.1%}")
+        predicted_class, confidence = predictions[0]
+        st.markdown('<div class="result-label">PREDICTED SCENE</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="result-class">{predicted_class.title()}</div>',
+            unsafe_allow_html=True,
+        )
+        st.metric("Confidence", f"{confidence:.1%}")
+        st.image(image, caption=uploaded_file.name, use_container_width=True)
 
-            with st.expander("See all class probabilities", expanded=True):
-                for class_name, probability in predictions:
-                    st.markdown(f"**{class_name.title()}** · {probability:.1%}")
-                    st.progress(float(np.clip(probability, 0.0, 1.0)))
-
-            st.image(image, caption=uploaded_file.name, use_container_width=True)
+with probabilities_column:
+    st.subheader("Class probabilities")
+    if predictions is None:
+        st.caption("Upload a valid image to see the probability for each class.")
+    else:
+        for class_name, probability in predictions:
+            st.markdown(f"**{class_name.title()}** · {probability:.1%}")
+            st.progress(float(np.clip(probability, 0.0, 1.0)))
