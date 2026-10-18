@@ -1,0 +1,9 @@
+services:
+  streamlit:
+    image: vision-classifier-streamlit:latest
+    build:
+      context: .
+      dockerfile: dockerfile
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
